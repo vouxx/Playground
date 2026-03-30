@@ -5,7 +5,9 @@ import { useSequencerStore } from '@/store/useSequencerStore';
 import { useTimelineStore } from '@/store/useTimelineStore';
 import { initAudio, triggerDrum, setTrackVolume, setTrackMute, getTransport } from '@/lib/audio';
 import { initSynth, triggerNotes, setSynthVolume, setSynthMute, setSynthPreset } from '@/lib/synth';
+import { initEffects, updateEffects } from '@/lib/effects';
 import { usePianoStore } from '@/store/usePianoStore';
+import { useEffectsStore } from '@/store/useEffectsStore';
 import * as Tone from 'tone';
 import type { DrumType } from '@/types';
 import { STEP_COUNT } from '@/types';
@@ -55,8 +57,10 @@ export function useSequencer() {
     if (!audioReady.current) {
       await initAudio();
       initSynth();
+      initEffects();
       audioReady.current = true;
     }
+    updateEffects(useEffectsStore.getState());
 
     syncVolumes();
     syncPiano();
@@ -136,12 +140,12 @@ export function useSequencer() {
     useTimelineStore.getState().setCurrentBar(0);
   }, []);
 
-  // BPM 동기화
+  // BPM + 스윙 동기화
   useEffect(() => {
     const unsub = useSequencerStore.subscribe((state, prev) => {
-      if (state.bpm !== prev.bpm) {
-        getTransport().bpm.value = state.bpm;
-      }
+      const transport = getTransport();
+      if (state.bpm !== prev.bpm) transport.bpm.value = state.bpm;
+      if (state.swing !== prev.swing) transport.swing = state.swing / 100;
     });
     return unsub;
   }, []);
@@ -171,6 +175,14 @@ export function useSequencer() {
     });
     return unsub;
   }, [syncMaster]);
+
+  // 이펙트 동기화
+  useEffect(() => {
+    const unsub = useEffectsStore.subscribe(() => {
+      updateEffects(useEffectsStore.getState());
+    });
+    return unsub;
+  }, []);
 
   // 정리
   useEffect(() => {
