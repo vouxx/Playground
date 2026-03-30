@@ -220,6 +220,18 @@ Scenario 1: **테마 토글**
 - FR-33: SHOULD 재생 중 현재 마디 위치를 하이라이트한다
 - FR-34: SHOULD 마디 복사/붙여넣기를 지원한다
 
+### Phase 5-6: UX + 사운드 + 시각 + 저장
+
+- FR-35: MUST 비트 프리셋(Hip-hop, House, Rock, Trap, Reggaeton, Lo-fi)을 제공한다
+- FR-36: MUST Undo/Redo를 지원한다 (Cmd+Z / Cmd+Shift+Z)
+- FR-37: MUST 스윙 컨트롤 (0~100%)을 지원한다
+- FR-38: MUST 탭 템포(TAP 버튼)로 BPM을 측정할 수 있다
+- FR-39: MUST 키보드 단축키(Space=재생/정지)를 지원한다
+- FR-40: MUST 이펙트 체인(Reverb, Delay, Distortion, Filter)을 지원한다
+- FR-41: MUST 실시간 파형 비주얼라이저를 표시한다
+- FR-42: MUST 로컬 프로젝트 저장/불러오기를 지원한다
+- FR-43: MUST URL로 패턴을 공유할 수 있다
+
 ## Constraints (mandatory)
 
 - CON-1: MUST Tone.js를 오디오 엔진으로 사용한다
@@ -261,3 +273,15 @@ Scenario 1: **테마 토글**
 - SC-19: 마스터 볼륨 조절 동작
 - SC-20: WAV 내보내기 → 파일 다운로드
 - SC-21: 4탭 전환 정상 동작
+
+### Phase 5-6 추가
+
+- SC-22: 프리셋 클릭 → 해당 비트 패턴 로드
+- SC-23: Cmd+Z → Undo, Cmd+Shift+Z → Redo
+- SC-24: 스윙 조절 → 그루브 변화
+- SC-25: TAP 버튼 연타 → BPM 자동 측정
+- SC-26: Space → 재생/정지 토글
+- SC-27: 이펙트 knob 조절 → 음향 변화
+- SC-28: 비주얼라이저에 실시간 파형 표시
+- SC-29: Save → localStorage 저장, Load → 복원
+- SC-30: Share → URL 클립보드 복사, URL 접속 → 패턴 복원
