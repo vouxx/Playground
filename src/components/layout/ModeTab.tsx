@@ -1,6 +1,6 @@
 'use client';
 
-type Mode = 'sequencer' | 'pad' | 'piano';
+type Mode = 'sequencer' | 'pad' | 'piano' | 'timeline';
 
 interface ModeTabProps {
   mode: Mode;
@@ -11,6 +11,7 @@ const TABS: { key: Mode; label: string }[] = [
   { key: 'sequencer', label: 'Sequencer' },
   { key: 'pad', label: 'Pad' },
   { key: 'piano', label: 'Piano Roll' },
+  { key: 'timeline', label: 'Timeline' },
 ];
 
 export default function ModeTab({ mode, onChangeMode }: ModeTabProps) {

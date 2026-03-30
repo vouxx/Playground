@@ -2,9 +2,11 @@
 
 import { useCallback, useEffect, useRef } from 'react';
 import { useSequencerStore } from '@/store/useSequencerStore';
+import { useTimelineStore } from '@/store/useTimelineStore';
 import { initAudio, triggerDrum, setTrackVolume, setTrackMute, getTransport } from '@/lib/audio';
 import { initSynth, triggerNotes, setSynthVolume, setSynthMute, setSynthPreset } from '@/lib/synth';
 import { usePianoStore } from '@/store/usePianoStore';
+import * as Tone from 'tone';
 import type { DrumType } from '@/types';
 import { STEP_COUNT } from '@/types';
 
@@ -44,6 +46,11 @@ export function useSequencer() {
     setSynthPreset(preset);
   }, []);
 
+  const syncMaster = useCallback(() => {
+    const { masterVolume } = useTimelineStore.getState();
+    Tone.getDestination().volume.value = volumeToDb(masterVolume);
+  }, []);
+
   const startSequencer = useCallback(async () => {
     if (!audioReady.current) {
       await initAudio();
@@ -53,6 +60,7 @@ export function useSequencer() {
 
     syncVolumes();
     syncPiano();
+    syncMaster();
 
     const transport = getTransport();
     const { bpm } = useSequencerStore.getState();
@@ -62,31 +70,57 @@ export function useSequencer() {
       transport.clear(sequenceRef.current);
     }
 
-    let step = 0;
+    let globalStep = 0;
     sequenceRef.current = transport.scheduleRepeat((time) => {
+      const { isTimelineMode } = useTimelineStore.getState();
+      const { bars, barCount } = useTimelineStore.getState();
       const { tracks } = useSequencerStore.getState();
       const hasSolo = tracks.some((t) => t.solo);
 
-      tracks.forEach((track) => {
-        if (!track.steps[step]) return;
-        if (!isTrackAudible(track.mute, track.solo, hasSolo)) return;
-        triggerDrum(track.id as DrumType, time);
-      });
+      let step: number;
+      let barIndex: number;
 
-      // Piano roll notes
+      if (isTimelineMode) {
+        barIndex = Math.floor(globalStep / STEP_COUNT) % barCount;
+        step = globalStep % STEP_COUNT;
+        useTimelineStore.getState().setCurrentBar(barIndex);
+      } else {
+        barIndex = 0;
+        step = globalStep % STEP_COUNT;
+      }
+
+      const bar = bars[barIndex];
+      const drumsActive = isTimelineMode ? bar.drumEnabled : true;
+      const pianoActive = isTimelineMode ? bar.pianoEnabled : true;
+
+      // Drums
+      if (drumsActive) {
+        tracks.forEach((track) => {
+          if (!track.steps[step]) return;
+          if (!isTrackAudible(track.mute, track.solo, hasSolo)) return;
+          triggerDrum(track.id as DrumType, time);
+        });
+      }
+
+      // Piano
       const pianoState = usePianoStore.getState();
-      if (!pianoState.mute) {
+      if (pianoActive && !pianoState.mute) {
         const notes = pianoState.getActiveNotes(step);
         if (notes.length > 0) triggerNotes(notes, time);
       }
 
       useSequencerStore.getState().setCurrentStep(step);
-      step = (step + 1) % STEP_COUNT;
+
+      if (isTimelineMode) {
+        globalStep = (globalStep + 1) % (STEP_COUNT * barCount);
+      } else {
+        globalStep = (globalStep + 1) % STEP_COUNT;
+      }
     }, '16n');
 
     transport.start();
     useSequencerStore.getState().setPlaying(true);
-  }, [syncVolumes]);
+  }, [syncVolumes, syncPiano, syncMaster]);
 
   const stopSequencer = useCallback(() => {
     const transport = getTransport();
@@ -99,6 +133,7 @@ export function useSequencer() {
     transport.stop();
     transport.position = 0;
     useSequencerStore.getState().setPlaying(false);
+    useTimelineStore.getState().setCurrentBar(0);
   }, []);
 
   // BPM 동기화
@@ -114,14 +149,12 @@ export function useSequencer() {
   // 볼륨/뮤트/솔로 동기화
   useEffect(() => {
     const unsub = useSequencerStore.subscribe((state, prev) => {
-      if (state.tracks !== prev.tracks) {
-        syncVolumes();
-      }
+      if (state.tracks !== prev.tracks) syncVolumes();
     });
     return unsub;
   }, [syncVolumes]);
 
-  // 피아노 볼륨/뮤트/프리셋 동기화
+  // 피아노 동기화
   useEffect(() => {
     const unsub = usePianoStore.subscribe((state, prev) => {
       if (state.volume !== prev.volume || state.mute !== prev.mute || state.preset !== prev.preset) {
@@ -131,13 +164,19 @@ export function useSequencer() {
     return unsub;
   }, [syncPiano]);
 
+  // 마스터 볼륨 동기화
+  useEffect(() => {
+    const unsub = useTimelineStore.subscribe((state, prev) => {
+      if (state.masterVolume !== prev.masterVolume) syncMaster();
+    });
+    return unsub;
+  }, [syncMaster]);
+
   // 정리
   useEffect(() => {
     return () => {
       const transport = getTransport();
-      if (sequenceRef.current !== null) {
-        transport.clear(sequenceRef.current);
-      }
+      if (sequenceRef.current !== null) transport.clear(sequenceRef.current);
       transport.stop();
     };
   }, []);
