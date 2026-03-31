@@ -245,3 +245,10 @@ Controller → Service → Repository
 - 시니어 엔지니어 수준의 판단과 코드 품질 유지
 - 유지보수 가능하고 예측 가능한 구조
 - 일관성과 확장성 확보
+
+## Active Technologies
+- TypeScript 5.x (strict mode) + Next.js 15 (App Router, Turbopack), Tone.js 15.x (Transport/오디오), Zustand 5.x (상태 관리), Tailwind CSS v4 (UI 스타일링) (001-core-daw-timeline)
+- 브라우저 메모리 (Phase 1 — 세션 내 상태만), Supabase는 Phase 7에서 추가 (001-core-daw-timeline)
+
+## Recent Changes
+- 001-core-daw-timeline: Added TypeScript 5.x (strict mode) + Next.js 15 (App Router, Turbopack), Tone.js 15.x (Transport/오디오), Zustand 5.x (상태 관리), Tailwind CSS v4 (UI 스타일링)
