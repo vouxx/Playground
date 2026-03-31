@@ -1,86 +1,155 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
-import dynamic from 'next/dynamic';
-import Header from '@/components/layout/Header';
-import ModeTab from '@/components/layout/ModeTab';
-import ProjectActions from '@/components/layout/ProjectActions';
-import StepGrid from '@/components/sequencer/StepGrid';
-import PadGrid from '@/components/pad/PadGrid';
-import PianoRollGrid from '@/components/piano/PianoRollGrid';
-import PianoControls from '@/components/piano/PianoControls';
-import TimelineGrid from '@/components/timeline/TimelineGrid';
-import TimelineControls from '@/components/timeline/TimelineControls';
-import EffectsPanel from '@/components/mixer/EffectsPanel';
-import { useSequencer } from '@/hooks/useSequencer';
-import { useTheme } from '@/hooks/useTheme';
-import { useKeyboard } from '@/hooks/useKeyboard';
-import { useSequencerStore } from '@/store/useSequencerStore';
-import { useTimelineStore } from '@/store/useTimelineStore';
-import { decodeProjectFromUrl } from '@/lib/storage';
+import { useCallback, useRef, useState } from 'react';
+import TimelineToolbar from '@/components/timeline/TimelineToolbar';
+import TrackHeader from '@/components/timeline/TrackHeader';
+import TimelineCanvas from '@/components/timeline/TimelineCanvas';
+import PianoRollPanel from '@/components/pianoroll/PianoRollPanel';
+import DrumPadGrid from '@/components/drumpad/DrumPadGrid';
+import { useProjectStore } from '@/store/useProjectStore';
+import { useTrackStore } from '@/store/useTrackStore';
+import { useViewportStore } from '@/store/useViewportStore';
+import { usePianoRollStore } from '@/store/usePianoRollStore';
+import { useRegionStore } from '@/store/useRegionStore';
+import { useMixer } from '@/hooks/useMixer';
+import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
+import { useScheduler } from '@/hooks/useScheduler';
+import { useMidiInput } from '@/hooks/useMidiInput';
+import { useRecorder } from '@/hooks/useRecorder';
+import { useEffects } from '@/hooks/useEffects';
+import EffectChainPanel from '@/components/effects/EffectChainPanel';
+import ScorePanel from '@/components/score/ScorePanel';
+import AIPanel from '@/components/ai/AIPanel';
+import { useScoreStore } from '@/store/useScoreStore';
 
-const Waveform = dynamic(() => import('@/components/visualizer/Waveform'), { ssr: false });
+export default function DAWPage() {
+  useMixer();
+  useKeyboardShortcuts();
+  useScheduler();
+  const { devices } = useMidiInput();
+  useRecorder();
+  useEffects();
 
-type Mode = 'sequencer' | 'pad' | 'piano' | 'timeline';
+  const trackOrder = useProjectStore((s) => s.trackOrder);
+  const reorderTracks = useProjectStore((s) => s.reorderTracks);
+  const tracks = useTrackStore((s) => s.tracks);
+  const openRegionId = usePianoRollStore((s) => s.openRegionId);
+  const regions = useRegionStore((s) => s.regions);
+  const trackPanelRef = useRef<HTMLDivElement>(null);
+  const [dragIndex, setDragIndex] = useState<number | null>(null);
+  const [showDrumPad, setShowDrumPad] = useState(false);
+  const [selectedTrackId, setSelectedTrackId] = useState<string | null>(null);
+  const [showAI, setShowAI] = useState(false);
 
-export default function BeatMakerPage() {
-  const { theme, toggle: toggleTheme } = useTheme();
-  const { startSequencer, stopSequencer } = useSequencer();
-  const isPlaying = useSequencerStore((s) => s.isPlaying);
-  const [mode, setMode] = useState<Mode>('sequencer');
+  // Determine if opened region is on a drum track
+  const openRegion = openRegionId ? regions[openRegionId] : null;
+  const openTrack = openRegion ? tracks[openRegion.trackId] : null;
+  const isDrumTrack = openTrack?.type === 'drum';
 
-  const handlePlayToggle = useCallback(() => {
-    if (useSequencerStore.getState().isPlaying) {
-      stopSequencer();
-    } else {
-      startSequencer();
-    }
-  }, [startSequencer, stopSequencer]);
-
-  useKeyboard({ onPlayToggle: handlePlayToggle });
-
-  useEffect(() => {
-    useTimelineStore.getState().setTimelineMode(mode === 'timeline');
-  }, [mode]);
-
-  // URL에서 프로젝트 로드
-  useEffect(() => {
-    decodeProjectFromUrl();
+  const handleTrackScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
+    useViewportStore.getState().setScrollY(e.currentTarget.scrollTop);
   }, []);
 
+  const handleDragStart = useCallback((index: number) => setDragIndex(index), []);
+  const handleDragOver = useCallback(
+    (targetIndex: number) => {
+      if (dragIndex === null || dragIndex === targetIndex) return;
+      reorderTracks(dragIndex, targetIndex);
+      setDragIndex(targetIndex);
+    },
+    [dragIndex, reorderTracks],
+  );
+  const handleDragEnd = useCallback(() => setDragIndex(null), []);
+
   return (
-    <>
-      <Header
-        theme={theme}
-        isPlaying={isPlaying}
-        onToggleTheme={toggleTheme}
-        onPlay={startSequencer}
-        onStop={stopSequencer}
+    <div className="flex h-full flex-col bg-zinc-900 text-zinc-100">
+      <TimelineToolbar
+        midiDeviceCount={devices.length}
+        onToggleDrumPad={() => setShowDrumPad((v) => !v)}
+        showDrumPad={showDrumPad}
+        onToggleScore={() => {
+          const store = useScoreStore.getState();
+          if (store.isOpen) { store.closeScore(); }
+          else if (selectedTrackId) { store.openScore(selectedTrackId); }
+        }}
+        showScore={useScoreStore.getState().isOpen}
+        onToggleAI={() => setShowAI((v) => !v)}
+        showAI={showAI}
       />
-      <main className="flex flex-1 flex-col items-center gap-4 overflow-auto p-6">
-        <div className="flex w-full max-w-4xl items-center justify-between">
-          <ModeTab mode={mode} onChangeMode={setMode} />
-          <ProjectActions />
+      <div className="flex flex-1 overflow-hidden">
+        {/* Track headers */}
+        <div
+          ref={trackPanelRef}
+          className="w-[200px] flex-shrink-0 overflow-y-auto border-r border-zinc-700 bg-zinc-800"
+          style={{ paddingTop: 24 }}
+          onScroll={handleTrackScroll}
+        >
+          {trackOrder.map((id, i) => {
+            const track = tracks[id];
+            if (!track) return null;
+            return (
+              <TrackHeader
+                key={id}
+                track={track}
+                index={i}
+                onDragStart={handleDragStart}
+                onDragOver={handleDragOver}
+                onDragEnd={handleDragEnd}
+                onSelect={() => setSelectedTrackId(id)}
+                selected={selectedTrackId === id}
+              />
+            );
+          })}
+          {trackOrder.length === 0 && (
+            <div className="flex h-full items-center justify-center text-xs text-zinc-500">
+              트랙을 추가하세요
+            </div>
+          )}
         </div>
 
-        <Waveform />
-        <EffectsPanel />
+        {/* Main area */}
+        <div className="flex flex-1 flex-col overflow-hidden">
+          <TimelineCanvas />
 
-        {mode === 'sequencer' && <StepGrid />}
-        {mode === 'pad' && <PadGrid />}
-        {mode === 'piano' && (
-          <>
-            <PianoControls />
-            <PianoRollGrid />
-          </>
+          {/* Drum pad */}
+          {showDrumPad && (
+            <div className="border-t border-zinc-700 bg-zinc-800">
+              <DrumPadGrid activeRegionId={openRegionId} />
+            </div>
+          )}
+        </div>
+
+        {/* Right sidebar */}
+        {(showAI || selectedTrackId) && (
+          <div className="w-[220px] flex-shrink-0 overflow-y-auto border-l border-zinc-700 bg-zinc-800">
+            {showAI && (
+              <AIPanel onClose={() => setShowAI(false)} />
+            )}
+            {selectedTrackId && !showAI && (
+              <>
+                <div className="flex items-center justify-between border-b border-zinc-700 px-2 py-1.5">
+                  <span className="text-[10px] font-medium text-zinc-300">
+                    {tracks[selectedTrackId]?.name}
+                  </span>
+                  <button
+                    onClick={() => setSelectedTrackId(null)}
+                    className="text-[10px] text-zinc-500 hover:text-zinc-300"
+                  >
+                    ✕
+                  </button>
+                </div>
+                <EffectChainPanel trackId={selectedTrackId} />
+              </>
+            )}
+          </div>
         )}
-        {mode === 'timeline' && (
-          <>
-            <TimelineControls />
-            <TimelineGrid />
-          </>
-        )}
-      </main>
-    </>
+      </div>
+
+      {/* Piano roll (bottom panel) */}
+      <PianoRollPanel />
+
+      {/* Score panel */}
+      <ScorePanel />
+    </div>
   );
 }
