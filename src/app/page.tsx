@@ -15,11 +15,13 @@ import { useMixer } from '@/hooks/useMixer';
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
 import { useScheduler } from '@/hooks/useScheduler';
 import { useMidiInput } from '@/hooks/useMidiInput';
+import { useMusicalTyping } from '@/hooks/useMusicalTyping';
 import { useRecorder } from '@/hooks/useRecorder';
 import { useEffects } from '@/hooks/useEffects';
 import EffectChainPanel from '@/components/effects/EffectChainPanel';
 import ScorePanel from '@/components/score/ScorePanel';
 import AIPanel from '@/components/ai/AIPanel';
+import LofiPanel from '@/components/lofi/LofiPanel';
 import { useScoreStore } from '@/store/useScoreStore';
 
 export default function DAWPage() {
@@ -34,12 +36,16 @@ export default function DAWPage() {
   const reorderTracks = useProjectStore((s) => s.reorderTracks);
   const tracks = useTrackStore((s) => s.tracks);
   const openRegionId = usePianoRollStore((s) => s.openRegionId);
+
+  // 전역 Musical Typing — 패드 패널 없이도 키보드로 드럼 입력
+  useMusicalTyping(openRegionId);
   const regions = useRegionStore((s) => s.regions);
   const trackPanelRef = useRef<HTMLDivElement>(null);
   const [dragIndex, setDragIndex] = useState<number | null>(null);
   const [showDrumPad, setShowDrumPad] = useState(false);
   const [selectedTrackId, setSelectedTrackId] = useState<string | null>(null);
   const [showAI, setShowAI] = useState(false);
+  const [showLofi, setShowLofi] = useState(false);
 
   // Determine if opened region is on a drum track
   const openRegion = openRegionId ? regions[openRegionId] : null;
@@ -75,6 +81,8 @@ export default function DAWPage() {
         showScore={useScoreStore.getState().isOpen}
         onToggleAI={() => setShowAI((v) => !v)}
         showAI={showAI}
+        onToggleLofi={() => setShowLofi((v) => !v)}
+        showLofi={showLofi}
       />
       <div className="flex flex-1 overflow-hidden">
         {/* Track headers */}
@@ -114,18 +122,21 @@ export default function DAWPage() {
           {/* Drum pad */}
           {showDrumPad && (
             <div className="border-t border-zinc-700 bg-zinc-800">
-              <DrumPadGrid activeRegionId={openRegionId} />
+              <DrumPadGrid />
             </div>
           )}
         </div>
 
         {/* Right sidebar */}
-        {(showAI || selectedTrackId) && (
+        {(showAI || showLofi || selectedTrackId) && (
           <div className="w-[220px] flex-shrink-0 overflow-y-auto border-l border-zinc-700 bg-zinc-800">
-            {showAI && (
+            {showLofi && (
+              <LofiPanel onClose={() => setShowLofi(false)} />
+            )}
+            {showAI && !showLofi && (
               <AIPanel onClose={() => setShowAI(false)} />
             )}
-            {selectedTrackId && !showAI && (
+            {selectedTrackId && !showAI && !showLofi && (
               <>
                 <div className="flex items-center justify-between border-b border-zinc-700 px-2 py-1.5">
                   <span className="text-[10px] font-medium text-zinc-300">

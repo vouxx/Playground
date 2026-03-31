@@ -42,11 +42,12 @@ export function scheduleAllNotes(
         const velocity = velocityToGain(note.velocity);
 
         const id = Tone.getTransport().scheduleOnce((time) => {
+          const safeTime = Math.max(time, Tone.now());
           if (track.type === 'drum') {
-            triggerDrum(note.pitch, time, velocity);
+            triggerDrum(note.pitch, safeTime, velocity);
           } else if (track.synth) {
             const noteName = pitchToName(note.pitch);
-            track.synth.triggerAttackRelease(noteName, duration, time, velocity);
+            track.synth.triggerAttackRelease(noteName, duration, safeTime, velocity);
           }
         }, startTime);
 

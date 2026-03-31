@@ -16,9 +16,11 @@ interface ToolbarProps {
   showScore?: boolean;
   onToggleAI?: () => void;
   showAI?: boolean;
+  onToggleLofi?: () => void;
+  showLofi?: boolean;
 }
 
-export default function TimelineToolbar({ midiDeviceCount = 0, onToggleDrumPad, showDrumPad, onToggleScore, showScore, onToggleAI, showAI }: ToolbarProps) {
+export default function TimelineToolbar({ midiDeviceCount = 0, onToggleDrumPad, showDrumPad, onToggleScore, showScore, onToggleAI, showAI, onToggleLofi, showLofi }: ToolbarProps) {
   const [showExport, setShowExport] = useState(false);
   const bpm = useProjectStore((s) => s.bpm);
   const setBpm = useProjectStore((s) => s.setBpm);
@@ -148,6 +150,20 @@ export default function TimelineToolbar({ midiDeviceCount = 0, onToggleDrumPad, 
           }`}
         >
           AI
+        </button>
+      )}
+
+      {/* Lo-Fi toggle */}
+      {onToggleLofi && (
+        <button
+          onClick={onToggleLofi}
+          className={`rounded px-2 py-1 text-sm ${
+            showLofi
+              ? 'bg-gradient-to-r from-indigo-600 to-pink-600 text-white'
+              : 'bg-zinc-700 text-zinc-400 hover:bg-zinc-600'
+          }`}
+        >
+          Lo-Fi
         </button>
       )}
 
